@@ -13,20 +13,29 @@ app.use(express.json());
 
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"],
   },
 });
 
 const documents = {};
+const usersInDocument = {};
 
 io.on("connection", (socket) => {
   console.log("A User Connected", socket.id);
 
   // join a document room
   socket.on("join-document", (docId) => {
-    socket.join(docId);
-    console.log(`User ${socket.id} joined document ${docId}`);
+    if (!usersInDocument[docId]) {
+      usersInDocument[docId] = new Set();
+    }
+
+    if (!usersInDocument[docId].has(socket.id)) {
+      socket.join(docId);
+      usersInDocument[docId].add(socket.id);
+      console.log(`User ${socket.id} joined document ${docId}`);
+      socket.to(docId).emit("user-joined", socket.id);
+    }
 
     if (documents[docId]) {
       socket.emit("load-document", documents[docId]);
