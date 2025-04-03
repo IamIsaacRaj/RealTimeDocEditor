@@ -4,7 +4,7 @@ const DocumentSchema = new mongoose.Schema(
   {
     docId: { type: String, required: true, unique: true },
     content: { type: Object, default: {} }, // Storing document content
-    createdBy: { type: String, required: true }, // User who created the document
+    createdBy: { type: String, required: false }, // User who created the document
     updatedBy: { type: String },
   },
   { timestamps: true }
