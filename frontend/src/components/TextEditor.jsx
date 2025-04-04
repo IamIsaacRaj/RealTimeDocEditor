@@ -8,6 +8,9 @@ const socket = io("http://localhost:5000", { autoConnect: false });
 
 const TextEditor = () => {
   const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+
 
   const quillRef = useRef(null);
   const hasJoinedRef = useRef(false);
@@ -65,26 +68,48 @@ const TextEditor = () => {
   };
 
   const handleSave = () => {
-    socket.emit("save-document", { docId, content }); // ✅ Save entire Delta content
-    alert("Document saved successfully!"); // Temporary confirmation message
+    setSaving(true);
+    socket.emit("save-document", { docId, content });
+
+    setTimeout(() => {
+      setSaving(false);
+      setSaveMessage("Document saved successfully!");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }, 1000); // simulate delay
   };
 
+
   return (
-    <div className="w-full max-w-4xl mx-auto bg-white shadow-md">
-      <ReactQuill
-        ref={quillRef}
-        value={content}
-        onChange={handleChanges}
-        theme="snow"
-      />
+    <>
+      <div className="w-full max-w-4xl mx-auto bg-white shadow-md p-4">
+        {saveMessage && (
+          <div className="mb-4 text-green-600 font-semibold text-center">
+            {saveMessage}
+          </div>
+        )}
+        <ReactQuill
+          ref={quillRef}
+          value={content}
+          onChange={handleChanges}
+          theme="snow"
+        />
+      </div>
+
       {/* Save Button */}
-      <button
-        className="bg-blue-500 text-white px-4 py-2 rounded mt-4"
-        onClick={handleSave}
-      >
-        Save Document
-      </button>
-    </div>
+      <div className="text-center mt-4">
+        <button
+          className={`px-4 py-2 rounded-md text-white ${
+            saving
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-blue-500 hover:bg-blue-600"
+          }`}
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Saving..." : "Save Document"}
+        </button>
+      </div>
+    </>
   );
 };
 
