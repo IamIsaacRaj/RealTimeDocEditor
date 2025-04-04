@@ -1,6 +1,8 @@
 import Document from "./models/Document.js";
 
 const usersInDocument = {}; // Track connected users per document
+// Debounced save map
+const saveTimeouts = {};
 
 export default function registerSocketEvents(io) {
   io.on("connection", (socket) => {
@@ -39,17 +41,30 @@ export default function registerSocketEvents(io) {
     // Handle text changes
     socket.on("send-changes", async ({ docId, delta }) => {
       try {
-        const document = await Document.findOne({ docId });
-        if (document) {
-          document.content.ops.push(delta); // Append delta changes
-          await document.save();
-        }
+        // Emit change to other users
         socket.to(docId).emit("receive-changes", delta);
+
+        // Debounced save logic
+        if (saveTimeouts[docId]) {
+          clearTimeout(saveTimeouts[docId]);
+        }
+
+        saveTimeouts[docId] = setTimeout(async () => {
+          try {
+            const document = await Document.findOne({ docId });
+            if (document) {
+              document.content.ops.push(delta); // Or consider replacing with latest full content if needed
+              await document.save();
+              console.log(`Document ${docId} auto-saved`);
+            }
+          } catch (err) {
+            console.error(`Error during debounced save for ${docId}:`, err);
+          }
+        }, 2000); // Save after 2 seconds of inactivity
       } catch (error) {
-        console.error("Error saving document:", error);
+        console.error("Error emitting send-changes:", error);
       }
     });
-
     // Save document manually
     socket.on("save-document", async ({ docId, content }) => {
       try {
