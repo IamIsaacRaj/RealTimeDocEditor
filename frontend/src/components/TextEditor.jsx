@@ -1,64 +1,23 @@
 import React, { useState, useRef, useEffect } from "react";
-import { io } from "socket.io-client";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { useParams } from "react-router-dom";
-
-const socket = io("http://localhost:5000", { autoConnect: false });
+import { Save, Loader2 } from "lucide-react";
+import CustomToolbar from "./customToolbar";
+import socket from "../utils/socketClient";
+import useDocumentSocket from "../custumHooks/useDocumentSocket";
 
 const TextEditor = () => {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
-
+  const [autoSave, setAutoSave] = useState(false);
+  const [title, setTitle] = useState("Untitled Document");
 
   const quillRef = useRef(null);
-  const hasJoinedRef = useRef(false);
-
   const { id: docId, userId } = useParams();
 
-  useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    if (!hasJoinedRef.current) {
-      console.log("Joining document:", docId); // ✅ Log joining
-      socket.emit("join-document", docId, userId);
-      hasJoinedRef.current = true; // Mark as joined
-    }
-
-    socket.on("user-joined", (userId) => {
-      console.log(`User joined: ${userId}`);
-    });
-
-    socket.on("load-document", (documentContent) => {
-      console.log("Loaded Document Content:", documentContent); // ✅ Debugging Log
-      if (!quillRef.current) {
-        console.warn("Quill is not ready yet!");
-        return;
-      }
-
-      const editor = quillRef.current.getEditor();
-      if (!editor) return;
-
-      editor.setContents(documentContent || { ops: [] }); // ✅ Ensure valid content
-      setContent(documentContent || { ops: [] });
-    });
-
-    socket.on("receive-changes", (delta) => {
-      console.log("Received Changes:", delta); // ✅ Debugging Log
-      if (quillRef.current) {
-        quillRef.current.getEditor().updateContents(delta);
-      }
-    });
-
-    return () => {
-      socket.off("user-joined");
-      socket.off("load-document");
-      socket.off("receive-changes");
-    };
-  }, [docId]);
+  useDocumentSocket({ docId, userId, quillRef, setContent });
 
   const handleChanges = (value, delta, source) => {
     if (source === "user") {
@@ -78,27 +37,79 @@ const TextEditor = () => {
     }, 1000); // simulate delay
   };
 
+  const modules = {
+    toolbar: {
+      container: "#toolbar-container",
+    },
+    history: {
+      delay: 500,
+      maxStack: 100,
+      userOnly: true,
+    },
+  };
+
+  const formats = [
+    "font",
+    "size",
+    "bold",
+    "italic",
+    "underline",
+    "strike",
+    "color",
+    "background",
+    "script",
+    "header",
+    "blockquote",
+    "code-block",
+    "list",
+    "bullet",
+    "indent",
+    "direction",
+    "align",
+    "link",
+    "image",
+    "formula",
+    "clean",
+  ];
+
+  useEffect(() => {
+    const quill = quillRef.current?.getEditor();
+    const toolbar = quill?.getModule("toolbar");
+
+    toolbar.addHandler("undo", () => {
+      quill.history.undo();
+    });
+
+    toolbar.addHandler("redo", () => {
+      quill.history.redo();
+    });
+  }, []);
 
   return (
     <>
-      <div className="w-full max-w-4xl mx-auto bg-white shadow-md p-4">
-        {saveMessage && (
-          <div className="mb-4 text-green-600 font-semibold text-center">
-            {saveMessage}
-          </div>
-        )}
-        <ReactQuill
-          ref={quillRef}
-          value={content}
-          onChange={handleChanges}
-          theme="snow"
+      {/* Top Header */}
+      <div className="w-full sticky top-0 px-6 py-2 flex justify-between items-center">
+        <input
+          className="text-lg font-semibold text-center flex-1 outline-none border-none bg-transparent"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
         />
       </div>
 
-      {/* Save Button */}
-      <div className="text-center mt-4">
+      {/* Toolbar */}
+      <div className="w-full sticky top-12 z-10 bg-white px-6 py-2 border-b shadow-sm flex items-center gap-4">
+        <label className="flex items-center ml-4 text-sm">
+          <input
+            type="checkbox"
+            className="mr-2"
+            checked={autoSave}
+            onChange={(e) => setAutoSave(e.target.checked)}
+          />
+          Auto-Save
+        </label>
+
         <button
-          className={`px-4 py-2 rounded-md text-white ${
+          className={`ml-auto px-3 py-1.5 rounded-md flex items-center gap-2 text-white ${
             saving
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-blue-500 hover:bg-blue-600"
@@ -106,8 +117,38 @@ const TextEditor = () => {
           onClick={handleSave}
           disabled={saving}
         >
-          {saving ? "Saving..." : "Save Document"}
+          {saving ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Save size={16} />
+          )}
+          {saving ? "Saving..." : "Save"}
         </button>
+      </div>
+
+      {/* Save message */}
+      {saveMessage && (
+        <div className="text-green-600 text-center font-medium my-2">
+          {saveMessage}
+        </div>
+      )}
+
+      {/* Text-Editor */}
+      <div className="w-full max-w-5xl mx-auto mt-2 p-4">
+        <CustomToolbar />
+        <ReactQuill
+          ref={(el) => {
+            quillRef.current = el;
+            if (el) {
+              window.quill = el.getEditor(); // 🔥 attach to window
+            }
+          }}
+          value={content}
+          onChange={handleChanges}
+          theme="snow"
+          modules={modules}
+          formats={formats}
+        />
       </div>
     </>
   );

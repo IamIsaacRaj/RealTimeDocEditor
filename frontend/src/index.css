@@ -1,3 +1,34 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.ql-container {
+  border: none !important;
+  min-height: 500px;
+}
+
+.ql-toolbar.ql-snow {
+  border: none !important;
+  background-color: #3d4b56 !important;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.5rem;
+  display: flex;
+}
+
+/* Target the icons (SVGs) inside the toolbar */
+.ql-toolbar.ql-snow .ql-picker,
+.ql-toolbar.ql-snow .ql-stroke,
+.ql-toolbar.ql-snow .ql-fill,
+.ql-toolbar.ql-snow .ql-picker-label,
+.ql-toolbar.ql-snow .ql-picker-options,
+.ql-toolbar.ql-snow button {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  background-color: #3d4b56;
+}
+
+/* Optional: hover effect */
+.ql-toolbar.ql-snow button:hover,
+.ql-toolbar.ql-snow .ql-picker-label:hover {
+  background-color: #4b5d6b;
+}
