@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { Save, Loader2 } from "lucide-react";
 import CustomToolbar from "./customToolbar";
 import socket from "../utils/socketClient";
@@ -12,10 +12,14 @@ const TextEditor = () => {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [autoSave, setAutoSave] = useState(false);
-  const [title, setTitle] = useState("Untitled Document");
+
+  const location = useLocation();
+  const { id: docId, userId } = useParams();
+  const passedTitle = location.state?.title || "Untitled Document";
+
+  const [title, setTitle] = useState(passedTitle);
 
   const quillRef = useRef(null);
-  const { id: docId, userId } = useParams();
 
   useDocumentSocket({ docId, userId, quillRef, setContent });
 
@@ -148,6 +152,7 @@ const TextEditor = () => {
           theme="snow"
           modules={modules}
           formats={formats}
+          placeholder="Start typing your awesome content here..."
         />
       </div>
     </>
