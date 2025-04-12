@@ -5,6 +5,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./db.js";
 import registerSocketEvents from "./socket.js";
+import userRoutes from "./routes/userRoutes.js";
+import documentsRoutes from "./routes/documentsRoutes.js";
 
 dotenv.config();
 connectDB(); // Connect to MongoDB
@@ -14,6 +16,8 @@ const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/documents", documentsRoutes);
+app.use("/api/user", userRoutes);
 
 const io = new Server(server, {
   cors: {

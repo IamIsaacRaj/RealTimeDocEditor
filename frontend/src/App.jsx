@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import NewDocumentModal from "./components/newDocmentModal";
+import axios from "axios";
 
 function App() {
   const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOption, setSortOption] = useState("");
   const navigate = useNavigate();
 
   const handleCreate = (title) => {
@@ -15,11 +18,35 @@ function App() {
     });
   };
 
+  const [documents, setDocuments] = useState([]);
 
-  const recentDocuments = [
-    { id: "123", title: "Project Plan", lastEdited: "2 hours ago" },
-    { id: "456", title: "Meeting Notes", lastEdited: "1 day ago" },
-  ];
+  useEffect(() => {
+    const fetchDocs = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/documents");
+        setDocuments(res.data);
+      } catch (err) {
+        console.error("Error fetching documents", err);
+      }
+    };
+
+    fetchDocs();
+  }, []);
+
+  const filteredDocs = documents
+    .filter((doc) =>
+      doc.docId.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortOption === "latest") {
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      } else if (sortOption === "oldest") {
+        return new Date(a.updatedAt) - new Date(b.updatedAt);
+      } else if (sortOption === "title") {
+        return a.title.localeCompare(b.title);
+      }
+      return 0;
+    });
 
   return (
     <div className="min-h-screen bg-gray-100 px-6 py-8">
@@ -38,21 +65,57 @@ function App() {
         onClose={() => setShowModal(false)}
         onCreate={handleCreate}
       />
+      {/* Dashboard Tools */}
+      <div className="mt-10">
+
+        {/* Search and Sort */}
+        <div className="flex flex-col md:flex-row items-center gap-4 mb-10">
+          {/* Search Bar */}
+          <input
+            type="text"
+            placeholder="Search documents..."
+            className="px-4 py-2 border rounded-md w-full md:w-1/2"
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+
+          {/* Sort Dropdown */}
+          <select
+            className="px-4 py-2 border rounded-md"
+            onChange={(e) => setSortOption(e.target.value)}
+          >
+            <option value="">Sort By</option>
+            <option value="latest">Latest Edited</option>
+            <option value="oldest">Oldest Edited</option>
+            <option value="title">Title A-Z</option>
+          </select>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {recentDocuments.map((doc) => (
+        {filteredDocs.map((doc) => (
           <button
-            key={doc.id}
-            onClick={() => navigate(`/document/${doc.id}/guest`)}
+            key={doc.docId}
+            onClick={() => navigate(`/document/${doc.docId}/guest`)}
             className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition text-left"
           >
-            <h2 className="font-semibold mb-2">{doc.title}</h2>
+            <h2 className="font-semibold mb-2">{doc.docId}</h2>
             <p className="text-sm text-gray-500">
-              Last edited: {doc.lastEdited}
+              Last edited: {new Date(doc.updatedAt).toLocaleString()}
             </p>
           </button>
         ))}
       </div>
+      {/* Sticky Bottom Navbar */}
+      <footer className="fixed bottom-0 left-0 w-full bg-white border-t shadow-md py-3 px-6 flex justify-between items-center z-50">
+        <div className="text-sm text-gray-600">
+          You're logged in as <strong>Guest</strong>
+        </div>
+        <div className="space-x-4 text-sm">
+          <button className="text-blue-600 hover:underline">Login</button>
+          <button className="text-blue-600 hover:underline">Sign Up</button>
+          <button className="text-red-500 hover:underline">Logout</button>
+        </div>
+      </footer>
     </div>
   );
 }
