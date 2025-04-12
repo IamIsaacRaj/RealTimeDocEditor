@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Plus } from "lucide-react";
 import NewDocumentModal from "./components/newDocmentModal";
-import axios from "axios";
+import LoginModal from "./components/loginModal";
+import SignupModal from "./components/signupModal";
+import { useAuth } from "./context/AuthContext";
 
 function App() {
   const [showModal, setShowModal] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState("");
+  const { user } = useAuth();
+  const { login } = useAuth();
+
   const navigate = useNavigate();
 
   const handleCreate = (title) => {
     const docId = title.toLowerCase().replace(/\s+/g, "-");
-    const userId = "guest";
+    const userId = user ? user._id : "guest";
     navigate(`/document/${docId}/${userId}`, {
       state: { title }, // pass the real title
     });
@@ -67,7 +76,6 @@ function App() {
       />
       {/* Dashboard Tools */}
       <div className="mt-10">
-
         {/* Search and Sort */}
         <div className="flex flex-col md:flex-row items-center gap-4 mb-10">
           {/* Search Bar */}
@@ -108,13 +116,46 @@ function App() {
       {/* Sticky Bottom Navbar */}
       <footer className="fixed bottom-0 left-0 w-full bg-white border-t shadow-md py-3 px-6 flex justify-between items-center z-50">
         <div className="text-sm text-gray-600">
-          You're logged in as <strong>Guest</strong>
+          You're logged in as <strong>{user?.username || "Guest"}</strong>
         </div>
         <div className="space-x-4 text-sm">
-          <button className="text-blue-600 hover:underline">Login</button>
-          <button className="text-blue-600 hover:underline">Sign Up</button>
-          <button className="text-red-500 hover:underline">Logout</button>
+          {!user ? (
+            <>
+              <button
+                onClick={() => setShowLogin(true)}
+                className="text-blue-600 hover:underline"
+              >
+                Login
+              </button>
+              <button
+                onClick={() => setShowSignup(true)}
+                className="text-blue-600 hover:underline"
+              >
+                Sign Up
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => {
+                localStorage.removeItem("user");
+                window.location.reload(); // or use logout from context if available
+              }}
+              className="text-red-500 hover:underline"
+            >
+              Logout
+            </button>
+          )}
         </div>
+        <LoginModal
+          isOpen={showLogin}
+          onClose={() => setShowLogin(false)}
+          onLogin={login}
+        />
+        <SignupModal
+          isOpen={showSignup}
+          onClose={() => setShowSignup(false)}
+          onSignup={login}
+        />
       </footer>
     </div>
   );
