@@ -1,8 +1,14 @@
 import { useEffect, useRef } from "react";
 import socket from "../utils/socketClient";
 
-
-const useDocumentSocket = ({ docId, userId, quillRef, setContent }) => {
+const useDocumentSocket = ({
+  docId,
+  userId,
+  quillRef,
+  setContent,
+  setTitle, // ✅ Accept this too
+  initialContent = { ops: [] },
+}) => {
   const hasJoinedRef = useRef(false);
 
   useEffect(() => {
@@ -11,33 +17,30 @@ const useDocumentSocket = ({ docId, userId, quillRef, setContent }) => {
     }
 
     if (!hasJoinedRef.current) {
-      console.log("Joining document:", docId); // ✅ Log joining
       socket.emit("join-document", docId, userId);
-      hasJoinedRef.current = true; // Mark as joined
+      hasJoinedRef.current = true;
     }
 
     socket.on("user-joined", (userId) => {
       console.log(`User joined: ${userId}`);
     });
 
-    socket.on("load-document", (documentContent) => {
-      console.log("Loaded Document Content:", documentContent); // ✅ Debugging Log
-      if (!quillRef.current) {
-        console.warn("Quill is not ready yet!");
-        return;
-      }
-
-      const editor = quillRef.current.getEditor();
+    socket.on("load-document", (documentContent, documentTitle) => {
+      const editor = quillRef.current?.getEditor();
       if (!editor) return;
 
-      editor.setContents(documentContent || { ops: [] }); // ✅ Ensure valid content
-      setContent(documentContent || { ops: [] });
+      const contentToLoad =
+        documentContent?.ops?.length > 0 ? documentContent : initialContent;
+
+      editor.setContents(contentToLoad);
+      setContent(contentToLoad);
+      if (setTitle) setTitle(documentTitle || "Untitled Document");
     });
 
     socket.on("receive-changes", (delta) => {
-      console.log("Received Changes:", delta); // ✅ Debugging Log
-      if (quillRef.current) {
-        quillRef.current.getEditor().updateContents(delta);
+      const editor = quillRef.current?.getEditor();
+      if (editor) {
+        editor.updateContents(delta);
       }
     });
 
@@ -46,7 +49,7 @@ const useDocumentSocket = ({ docId, userId, quillRef, setContent }) => {
       socket.off("load-document");
       socket.off("receive-changes");
     };
-  });
+  }, [docId, userId, quillRef, setContent, initialContent, setTitle]);
 };
 
-export default useDocumentSocket
+export default useDocumentSocket;

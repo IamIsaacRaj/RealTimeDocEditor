@@ -32,7 +32,11 @@ export default function registerSocketEvents(io) {
           });
           await document.save();
         }
-        socket.emit("load-document", document.content);
+        socket.emit(
+          "load-document",
+          document.content,
+          document.title || "Untitled Document"
+        );
       } catch (error) {
         console.error("Error loading document:", error);
       }
@@ -66,11 +70,11 @@ export default function registerSocketEvents(io) {
       }
     });
     // Save document manually
-    socket.on("save-document", async ({ docId, content }) => {
+    socket.on("save-document", async ({ docId, content, title, userId }) => {
       try {
         await Document.findOneAndUpdate(
           { docId },
-          { content },
+          { content, title, createdBy: userId },
           { upsert: true }
         );
       } catch (error) {
@@ -83,6 +87,11 @@ export default function registerSocketEvents(io) {
       console.log("User disconnected", socket.id);
       for (let docId in usersInDocument) {
         usersInDocument[docId].delete(socket.id);
+        // Optional: clean up debounce timer if no users left in document
+        if (usersInDocument[docId].size === 0) {
+          clearTimeout(saveTimeouts[docId]);
+          delete saveTimeouts[docId];
+        }
       }
     });
   });

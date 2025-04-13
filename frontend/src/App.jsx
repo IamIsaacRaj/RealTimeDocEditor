@@ -20,8 +20,9 @@ function App() {
   const navigate = useNavigate();
 
   const handleCreate = (title) => {
-    const docId = title.toLowerCase().replace(/\s+/g, "-");
-    const userId = user ? user._id : "guest";
+    const docId = `${title.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+
+    const userId = user ? user.id : "guest";
     navigate(`/document/${docId}/${userId}`, {
       state: { title }, // pass the real title
     });
@@ -57,6 +58,41 @@ function App() {
       return 0;
     });
 
+  const handleImport = async (e) => {
+    const userId = user ? user.id : "guest";
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = reader.result;
+
+      if (file.name.endsWith(".txt")) {
+        // Create a temporary document with plain text
+        const docId = `imported-${Date.now()}`;
+        navigate(`/document/${docId}/${userId}`, {
+          state: {
+            title: file.name,
+            content: { ops: [{ insert: content }] },
+          },
+        });
+      } else if (file.name.endsWith(".json")) {
+        try {
+          const delta = JSON.parse(content);
+          const docId = `imported-${Date.now()}`;
+          navigate(`/document/${docId}/${userId}`, {
+            state: { title: file.name, content: delta },
+          });
+        } catch (error) {
+          console.error("error importing documen t:", error);
+
+          alert("Invalid JSON format!");
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 px-6 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -67,6 +103,20 @@ function App() {
         >
           <Plus size={18} /> New Document
         </button>
+        <input
+          type="file"
+          accept=".txt,.json"
+          onChange={handleImport}
+          className="hidden"
+          id="import-input"
+        />
+
+        <label
+          htmlFor="import-input"
+          className="ml-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 cursor-pointer"
+        >
+          Import Document
+        </label>
       </div>
 
       <NewDocumentModal
@@ -103,7 +153,9 @@ function App() {
         {filteredDocs.map((doc) => (
           <button
             key={doc.docId}
-            onClick={() => navigate(`/document/${doc.docId}/guest`)}
+            onClick={() =>
+              navigate(`/document/${doc.docId}/${user ? user.id : "guest"}t`)
+            }
             className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition text-left"
           >
             <h2 className="font-semibold mb-2">{doc.docId}</h2>

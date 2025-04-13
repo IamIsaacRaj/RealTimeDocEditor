@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useAuth } from "../context/AuthContext";
 
 const LoginModal = ({ isOpen, onClose }) => {
+  const { login } = useAuth(); // use login from context
   const BASE_URL = import.meta.env.VITE_BACKEND_URL;
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
@@ -13,6 +15,8 @@ const LoginModal = ({ isOpen, onClose }) => {
   const handleLogin = async () => {
     try {
       const res = await axios.post(`${BASE_URL}/api/user/login`, form);
+      // Store user and token in context
+      login(res.data.user, res.data.token);
       console.log("Logged in:", res.data);
       onClose();
     } catch (error) {

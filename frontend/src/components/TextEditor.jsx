@@ -20,8 +20,16 @@ const TextEditor = () => {
   const [title, setTitle] = useState(passedTitle);
 
   const quillRef = useRef(null);
+  const initialContent = location.state?.content || { ops: [] };
 
-  useDocumentSocket({ docId, userId, quillRef, setContent });
+  useDocumentSocket({
+    docId,
+    userId,
+    quillRef,
+    initialContent,
+    setContent,
+    setTitle,
+  });
 
   const handleChanges = (value, delta, source) => {
     if (source === "user") {
@@ -32,7 +40,7 @@ const TextEditor = () => {
 
   const handleSave = () => {
     setSaving(true);
-    socket.emit("save-document", { docId, content });
+    socket.emit("save-document", { docId, content, title });
 
     setTimeout(() => {
       setSaving(false);
@@ -138,22 +146,29 @@ const TextEditor = () => {
       )}
 
       {/* Text-Editor */}
-      <div className="w-full max-w-5xl mx-auto mt-2 p-4">
-        <CustomToolbar />
-        <ReactQuill
-          ref={(el) => {
-            quillRef.current = el;
-            if (el) {
-              window.quill = el.getEditor(); // 🔥 attach to window
-            }
-          }}
-          value={content}
-          onChange={handleChanges}
-          theme="snow"
-          modules={modules}
-          formats={formats}
-          placeholder="Start typing your awesome content here..."
-        />
+      <div className="w-full max-w-5xl mx-auto mt-2 p-4 h-[80vh] flex flex-col">
+        {/* Sticky Custom Toolbar */}
+        <div className="sticky top-12 z-10 bg-white">
+          <CustomToolbar />
+        </div>
+
+        {/* Quill Editor Area */}
+        <div className="flex-1 overflow-y-auto">
+          <ReactQuill
+            ref={(el) => {
+              quillRef.current = el;
+              if (el) {
+                window.quill = el.getEditor();
+              }
+            }}
+            value={content}
+            onChange={handleChanges}
+            theme="snow"
+            modules={modules}
+            formats={formats}
+            placeholder="Start typing your awesome content here..."
+          />
+        </div>
       </div>
     </>
   );
