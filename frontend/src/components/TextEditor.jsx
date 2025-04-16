@@ -16,6 +16,8 @@ const TextEditor = () => {
   const [autoSave, setAutoSave] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [saveError, setSaveError] = useState(false);
+  const [createdBy, setCreatedBy] = useState(null);
+  const [updatedBy, setUpdatedBy] = useState(null);
   const saveTimeoutRef = useRef(null);
 
   const location = useLocation();
@@ -32,6 +34,12 @@ const TextEditor = () => {
       localStorage.setItem(`doc_title_${docId}`, newTitle);
     });
 
+    // Listen for document updates
+    socket.on("document-updated", ({ updatedBy, updatedAt }) => {
+      setUpdatedBy(updatedBy);
+      setLastSaved(new Date(updatedAt));
+    });
+
     // Listen for save errors
     socket.on("save-error", (error) => {
       setSaveError(true);
@@ -41,6 +49,7 @@ const TextEditor = () => {
 
     return () => {
       socket.off("title-updated");
+      socket.off("document-updated");
       socket.off("save-error");
     };
   }, [docId]);
@@ -63,11 +72,13 @@ const TextEditor = () => {
     initialContent,
     setContent,
     setTitle,
+    setCreatedBy,
+    setUpdatedBy,
   });
 
   const handleChanges = (value, delta, source) => {
     if (source === "user") {
-      socket.emit("send-changes", { docId, delta });
+      socket.emit("send-changes", { docId, delta, userId });
     }
     setContent(quillRef.current.getEditor().getContents());
     
@@ -90,7 +101,7 @@ const TextEditor = () => {
     setSaveError(false);
     
     try {
-      socket.emit("save-document", { docId, content, title });
+      socket.emit("save-document", { docId, content, title, userId });
       setLastSaved(new Date());
       setSaveMessage("Auto-saved successfully!");
       setTimeout(() => setSaveMessage(""), 3000);
@@ -105,7 +116,7 @@ const TextEditor = () => {
     setSaveError(false);
     
     try {
-      socket.emit("save-document", { docId, content, title });
+      socket.emit("save-document", { docId, content, title, userId });
       setLastSaved(new Date());
       setSaveMessage("Document saved successfully!");
       setTimeout(() => setSaveMessage(""), 3000);
@@ -172,6 +183,8 @@ const TextEditor = () => {
         lastSaved={lastSaved}
         saveError={saveError}
         saveMessage={saveMessage}
+        createdBy={createdBy}
+        updatedBy={updatedBy}
       />
       
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

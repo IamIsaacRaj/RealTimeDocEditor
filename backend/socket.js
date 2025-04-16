@@ -1,4 +1,5 @@
 import Document from "./models/Document.js";
+import User from "./models/User.js";
 
 const usersInDocument = {}; // Track connected users per document
 // Debounced save map
@@ -30,13 +31,21 @@ export default function registerSocketEvents(io) {
             title: "Untitled Document",
             content: { ops: [] },
             createdBy: userId,
+            updatedBy: userId
           });
           await document.save();
         }
+
+        // Fetch user information
+        const creator = await User.findById(document.createdBy);
+        const editor = document.updatedBy !== document.createdBy ? await User.findById(document.updatedBy) : null;
+
         socket.emit(
           "load-document",
           document.content,
-          document.title
+          document.title,
+          creator ? creator.username : document.createdBy,
+          editor ? editor.username : document.updatedBy
         );
       } catch (error) {
         console.error("Error loading document:", error);
@@ -44,7 +53,7 @@ export default function registerSocketEvents(io) {
     });
 
     // Handle text changes
-    socket.on("send-changes", async ({ docId, delta }) => {
+    socket.on("send-changes", async ({ docId, delta, userId }) => {
       try {
         // Emit change to other users
         socket.to(docId).emit("receive-changes", delta);
@@ -58,18 +67,28 @@ export default function registerSocketEvents(io) {
           try {
             const document = await Document.findOne({ docId });
             if (document) {
-              document.content.ops.push(delta); // Or consider replacing with latest full content if needed
+              document.content.ops.push(delta);
+              document.updatedBy = userId; // Add updatedBy field
               await document.save();
-              console.log(`Document ${docId} auto-saved`);
+
+              // Fetch updated user information
+              const editor = await User.findById(userId);
+              io.to(docId).emit("document-updated", {
+                updatedBy: editor ? editor.username : userId,
+                updatedAt: document.updatedAt
+              });
+
+              console.log(`Document ${docId} auto-saved by user ${userId}`);
             }
           } catch (err) {
             console.error(`Error during debounced save for ${docId}:`, err);
           }
-        }, 2000); // Save after 2 seconds of inactivity
+        }, 2000);
       } catch (error) {
         console.error("Error emitting send-changes:", error);
       }
     });
+
     // Save document manually
     socket.on("save-document", async ({ docId, content, title, userId }) => {
       try {
@@ -83,8 +102,15 @@ export default function registerSocketEvents(io) {
           { upsert: true, new: true }
         );
         
-        // Broadcast title update to all users in the document
+        // Fetch user information
+        const editor = await User.findById(userId);
+        
+        // Broadcast updates to all users in the document
         io.to(docId).emit("title-updated", result.title);
+        io.to(docId).emit("document-updated", {
+          updatedBy: editor ? editor.username : userId,
+          updatedAt: result.updatedAt
+        });
         
       } catch (error) {
         console.error("Error saving document:", error);
@@ -97,7 +123,6 @@ export default function registerSocketEvents(io) {
       console.log("User disconnected", socket.id);
       for (let docId in usersInDocument) {
         usersInDocument[docId].delete(socket.id);
-        // Optional: clean up debounce timer if no users left in document
         if (usersInDocument[docId].size === 0) {
           clearTimeout(saveTimeouts[docId]);
           delete saveTimeouts[docId];
