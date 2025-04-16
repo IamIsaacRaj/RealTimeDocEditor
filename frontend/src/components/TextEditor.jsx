@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { useParams, useLocation } from "react-router-dom";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import CustomToolbar from "./customToolbar";
+import EditorHeader from "./EditorHeader";
+import EditorStatusBar from "./EditorStatusBar";
 import socket from "../utils/socketClient";
 import useDocumentSocket from "../custumHooks/useDocumentSocket";
 
@@ -12,15 +14,47 @@ const TextEditor = () => {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [autoSave, setAutoSave] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [saveError, setSaveError] = useState(false);
+  const saveTimeoutRef = useRef(null);
 
   const location = useLocation();
   const { id: docId, userId } = useParams();
-  const passedTitle = location.state?.title || "Untitled Document";
-
-  const [title, setTitle] = useState(passedTitle);
+  const [title, setTitle] = useState("Untitled Document");
 
   const quillRef = useRef(null);
   const initialContent = location.state?.content || { ops: [] };
+
+  useEffect(() => {
+    // Listen for title updates from other users
+    socket.on("title-updated", (newTitle) => {
+      setTitle(newTitle);
+      localStorage.setItem(`doc_title_${docId}`, newTitle);
+    });
+
+    // Listen for save errors
+    socket.on("save-error", (error) => {
+      setSaveError(true);
+      setSaveMessage(error.message);
+      setTimeout(() => setSaveMessage(""), 3000);
+    });
+
+    return () => {
+      socket.off("title-updated");
+      socket.off("save-error");
+    };
+  }, [docId]);
+
+  // Load saved title from localStorage on mount
+  useEffect(() => {
+    const savedTitle = localStorage.getItem(`doc_title_${docId}`);
+    if (savedTitle) {
+      setTitle(savedTitle);
+    } else if (location.state?.title) {
+      setTitle(location.state.title);
+      localStorage.setItem(`doc_title_${docId}`, location.state.title);
+    }
+  }, [docId, location.state?.title]);
 
   useDocumentSocket({
     docId,
@@ -35,27 +69,69 @@ const TextEditor = () => {
     if (source === "user") {
       socket.emit("send-changes", { docId, delta });
     }
-    setContent(quillRef.current.getEditor().getContents()); // ✅ Ensure it stores Delta format
+    setContent(quillRef.current.getEditor().getContents());
+    
+    // Auto-save after changes
+    if (autoSave) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        handleAutoSave();
+      }, 2000);
+    }
   };
 
-  const handleSave = () => {
-    setSaving(true);
-    socket.emit("save-document", { docId, content, title });
+  // Update title in localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(`doc_title_${docId}`, title);
+  }, [title, docId]);
 
-    setTimeout(() => {
-      setSaving(false);
+  const handleAutoSave = async () => {
+    if (!autoSave) return;
+    setSaveError(false);
+    
+    try {
+      socket.emit("save-document", { docId, content, title });
+      setLastSaved(new Date());
+      setSaveMessage("Auto-saved successfully!");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      setSaveError(true);
+      setSaveMessage("Error auto-saving document");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaveError(false);
+    
+    try {
+      socket.emit("save-document", { docId, content, title });
+      setLastSaved(new Date());
       setSaveMessage("Document saved successfully!");
       setTimeout(() => setSaveMessage(""), 3000);
-    }, 1000); // simulate delay
+    } catch (error) {
+      setSaveError(true);
+      setSaveMessage("Error saving document");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
   };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const modules = {
     toolbar: {
       container: "#toolbar-container",
     },
     history: {
-      delay: 500,
-      maxStack: 100,
+      delay: 2000,
+      maxStack: 500,
       userOnly: true,
     },
   };
@@ -84,93 +160,40 @@ const TextEditor = () => {
     "clean",
   ];
 
-  useEffect(() => {
-    const quill = quillRef.current?.getEditor();
-    const toolbar = quill?.getModule("toolbar");
-
-    toolbar.addHandler("undo", () => {
-      quill.history.undo();
-    });
-
-    toolbar.addHandler("redo", () => {
-      quill.history.redo();
-    });
-  }, []);
-
   return (
-    <>
-      {/* Top Header */}
-      <div className="w-full sticky top-0 px-6 py-2 flex justify-between items-center">
-        <input
-          className="text-lg font-semibold text-center flex-1 outline-none border-none bg-transparent"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </div>
-
-      {/* Toolbar */}
-      <div className="w-full sticky top-12 z-10 bg-white px-6 py-2 border-b shadow-sm flex items-center gap-4">
-        <label className="flex items-center ml-4 text-sm">
-          <input
-            type="checkbox"
-            className="mr-2"
-            checked={autoSave}
-            onChange={(e) => setAutoSave(e.target.checked)}
-          />
-          Auto-Save
-        </label>
-
-        <button
-          className={`ml-auto px-3 py-1.5 rounded-md flex items-center gap-2 text-white ${
-            saving
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-500 hover:bg-blue-600"
-          }`}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? (
-            <Loader2 className="animate-spin" size={16} />
-          ) : (
-            <Save size={16} />
-          )}
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-
-      {/* Save message */}
-      {saveMessage && (
-        <div className="text-green-600 text-center font-medium my-2">
-          {saveMessage}
-        </div>
-      )}
-
-      {/* Text-Editor */}
-      <div className="w-full max-w-5xl mx-auto mt-2 p-4 h-[80vh] flex flex-col">
-        {/* Sticky Custom Toolbar */}
-        <div className="sticky top-12 z-10 bg-white">
-          <CustomToolbar />
-        </div>
-
-        {/* Quill Editor Area */}
-        <div className="flex-1 overflow-y-auto">
-          <ReactQuill
-            ref={(el) => {
-              quillRef.current = el;
-              if (el) {
-                window.quill = el.getEditor();
-              }
-            }}
-            value={content}
-            onChange={handleChanges}
-            theme="snow"
-            modules={modules}
-            formats={formats}
-            placeholder="Start typing your awesome content here..."
-          />
+    <div className="flex flex-col h-screen bg-[#0F172A]">
+      <EditorHeader
+        title={title}
+        setTitle={setTitle}
+        autoSave={autoSave}
+        setAutoSave={setAutoSave}
+        onSave={handleSave}
+        saving={saving}
+        lastSaved={lastSaved}
+        saveError={saveError}
+        saveMessage={saveMessage}
+      />
+      
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <CustomToolbar />
+        <div className="flex-1 overflow-y-auto bg-white">
+          <div className="h-full">
+            <ReactQuill
+              ref={quillRef}
+              value={content}
+              onChange={handleChanges}
+              modules={modules}
+              formats={formats}
+              placeholder="Start typing your awesome content here..."
+              className="h-full [&_.ql-editor]:min-h-[calc(100vh-15rem)] [&_.ql-editor]:text-lg [&_.ql-editor]:leading-relaxed"
+              theme="snow"
+            />
+          </div>
         </div>
       </div>
-    </>
+
+      <EditorStatusBar content={content} />
+    </div>
   );
 };
 

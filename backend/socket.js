@@ -27,6 +27,7 @@ export default function registerSocketEvents(io) {
         if (!document) {
           document = new Document({
             docId,
+            title: "Untitled Document",
             content: { ops: [] },
             createdBy: userId,
           });
@@ -35,7 +36,7 @@ export default function registerSocketEvents(io) {
         socket.emit(
           "load-document",
           document.content,
-          document.title || "Untitled Document"
+          document.title
         );
       } catch (error) {
         console.error("Error loading document:", error);
@@ -72,13 +73,22 @@ export default function registerSocketEvents(io) {
     // Save document manually
     socket.on("save-document", async ({ docId, content, title, userId }) => {
       try {
-        await Document.findOneAndUpdate(
+        const result = await Document.findOneAndUpdate(
           { docId },
-          { content, title, createdBy: userId },
-          { upsert: true }
+          { 
+            content, 
+            title: title || "Untitled Document",
+            updatedBy: userId 
+          },
+          { upsert: true, new: true }
         );
+        
+        // Broadcast title update to all users in the document
+        io.to(docId).emit("title-updated", result.title);
+        
       } catch (error) {
         console.error("Error saving document:", error);
+        socket.emit("save-error", { message: "Failed to save document" });
       }
     });
 

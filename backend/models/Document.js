@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const DocumentSchema = new mongoose.Schema(
   {
     docId: { type: String, required: true, unique: true },
+    title: { type: String, default: "Untitled Document" },
     content: { type: Object, default: {} }, // Storing document content
     createdBy: { type: String, required: false }, // User who created the document
     updatedBy: { type: String },
