@@ -1,5 +1,5 @@
 // src/components/SignupModal.jsx
-import React, { useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
 

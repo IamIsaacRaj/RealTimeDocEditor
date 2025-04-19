@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 const NewDocumentModal = ({ isOpen, onClose, onCreate }) => {
   const [title, setTitle] = useState("");
